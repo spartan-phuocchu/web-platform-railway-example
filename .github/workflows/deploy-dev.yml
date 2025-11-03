@@ -1,0 +1,57 @@
+name: DEV - Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '.github/**'
+      - '**/*.md'
+      - '.env.example'
+  workflow_dispatch:
+
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+  # Env-specific variables
+  RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT_DEV }}
+  SITE_URL: ${{ vars.SITE_URL_DEV }}
+  DATABASE_URL: ${{ secrets.DATABASE_URL_DEV }}
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_PROJECT_TOKEN_DEV }}
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v2
+        id: github-app-token
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Checkout source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 3
+          ref: ${{ github.head_ref }}
+          token: ${{ steps.github-app-token.outputs.token }}
+          # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
+          persist-credentials: false
+
+      - name: Install Railway CLI
+        run: |
+          npm i -g @railway/cli
+          railway --version
+
+      - name: Deploy service to Railway
+        run: |
+          railway up --service $SERVICE_NAME --environment $RAILWAY_ENVIRONMENT --detach
